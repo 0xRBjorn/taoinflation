@@ -1,0 +1,997 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>τ Cryptocurrency Inflation Rates</title>
+  <!-- React and ReactDOM -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <!-- Recharts and dependencies -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/prop-types/15.8.1/prop-types.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/recharts/2.5.0/Recharts.min.js"></script>
+  <!-- Babel for JSX -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.21.4/babel.min.js"></script>
+  <!-- Tailwind CSS for styling -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f5f7fa;
+    }
+    #root {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+    .loading-spinner {
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border-left-color: #2563eb;
+      animation: spin 1s ease infinite;
+    }
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="root">
+    <div class="flex items-center justify-center h-screen">
+      <div class="text-center">
+        <div class="loading-spinner mx-auto mb-4"></div>
+        <p class="text-gray-600">Loading τ Cryptocurrency Visualization...</p>
+      </div>
+    </div>
+  </div>
+
+  <script type="text/babel">
+    // Destructure components from Recharts
+    const {
+      LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, 
+      ResponsiveContainer, ReferenceLine, AreaChart, Area, ComposedChart,
+      Bar, Brush, Label
+    } = Recharts;
+    
+    // Date formatting utility
+    const formatDate = (date, format = 'short') => {
+      if (!date) return '';
+      
+      switch(format) {
+        case 'full':
+          return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'long', 
+            day: 'numeric' 
+          });
+        case 'medium':
+          return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short', 
+            day: 'numeric' 
+          });
+        case 'monthYear':
+          return date.toLocaleDateString('en-US', { 
+            year: 'numeric', 
+            month: 'short'
+          });
+        case 'year':
+          return date.getFullYear().toString();
+        default:
+          return date.toLocaleDateString('en-US', { 
+            month: 'short', 
+            day: 'numeric',
+            year: '2-digit'
+          });
+      }
+    };
+    
+    // Token configurations
+    const tokenConfigs = {
+      'original': {
+        name: 'Original τ Token',
+        startDate: new Date('2022-01-01'),
+        color: '#4caf50'
+      },
+      'subnets': {
+        name: 'τ Subnets',
+        startDate: new Date('2025-02-14'),
+        color: '#2196f3'
+      }
+    };
+    
+    // Main component
+    const TauInflationVisualizer = () => {
+      const [activeChart, setActiveChart] = React.useState('weekly');
+      const [weeklyData, setWeeklyData] = React.useState([]);
+      const [monthlyData, setMonthlyData] = React.useState([]);
+      const [yearlyData, setYearlyData] = React.useState([]);
+      const [halvings, setHalvings] = React.useState([]);
+      const [useLogScale, setUseLogScale] = React.useState(true);
+      const [viewPeriod, setViewPeriod] = React.useState('all');
+      const [isLoading, setIsLoading] = React.useState(true);
+      const [showSupply, setShowSupply] = React.useState(true);
+      const [activeToken, setActiveToken] = React.useState('original');
+
+      // Re-run simulation when token changes
+      React.useEffect(() => {
+        runSimulation();
+      }, [activeToken]);
+
+      const runSimulation = () => {
+        // Simulation parameters
+        const initialSupply = 1;
+        const initialDailyEmission = 7200;
+        const maxSupply = 21000000;
+        const firstHalvingThreshold = 10500000;
+        const startDate = tokenConfigs[activeToken].startDate;
+
+        // Function to simulate emissions
+        const simulateEmissions = (days) => {
+          let supply = initialSupply;
+          let dailyEmission = initialDailyEmission;
+          let totalEmitted = 0;
+          let emittedSinceLastHalving = 0;
+          let nextHalvingAmount = firstHalvingThreshold;
+          
+          const dailyData = [{
+            day: 0,
+            date: new Date(startDate),
+            supply,
+            dailyEmission,
+            totalEmitted,
+            emittedSinceLastHalving,
+            nextHalvingAmount,
+            dailyInflation: 0,
+            percentOfMaxSupply: (supply / maxSupply) * 100
+          }];
+          
+          for (let day = 1; day <= days; day++) {
+            // Calculate the date for this day
+            const currentDate = new Date(startDate);
+            currentDate.setDate(currentDate.getDate() + day);
+            
+            // Calculate actual emission for the day
+            const actualEmission = Math.min(dailyEmission, maxSupply - supply);
+            
+            // Calculate inflation based on supply at the beginning of the day
+            const dailyInflation = (actualEmission / supply) * 100;
+            
+            // Update tracking variables
+            totalEmitted += actualEmission;
+            emittedSinceLastHalving += actualEmission;
+            supply += actualEmission;
+            
+            // Check if we've reached the halving threshold
+            if (emittedSinceLastHalving >= nextHalvingAmount) {
+              dailyEmission /= 2;  // Halve the emission rate
+              emittedSinceLastHalving = 0;  // Reset the counter
+              nextHalvingAmount /= 2;  // Halve the amount needed for next halving
+            }
+            
+            // Record data
+            dailyData.push({
+              day,
+              date: currentDate,
+              supply,
+              dailyEmission,
+              totalEmitted,
+              emittedSinceLastHalving,
+              nextHalvingAmount,
+              dailyInflation,
+              percentOfMaxSupply: (supply / maxSupply) * 100
+            });
+            
+            // Stop if we've reached max supply
+            if (supply >= maxSupply) break;
+          }
+          
+          return dailyData;
+        };
+
+        // Calculate inflation rates
+        const calculateInflationRates = (dailyData) => {
+          // Calculate weekly inflation
+          const weeklyData = [];
+          for (let i = 0; i < dailyData.length - 7; i += 7) {
+            const startDay = dailyData[i];
+            const endDay = dailyData[Math.min(i + 6, dailyData.length - 1)];
+            const weeklyEmission = endDay.supply - startDay.supply;
+            const weeklyInflation = (weeklyEmission / startDay.supply) * 100;
+            
+            // Calculate monthly inflation rate (annualized from weekly)
+            const weeklyRate = weeklyEmission / startDay.supply;
+            const monthlyRate = Math.pow(1 + weeklyRate, 30/7) - 1;
+            const monthlyInflation = monthlyRate * 100;
+            
+            // Calculate yearly inflation rate (annualized from weekly)
+            const yearlyRate = Math.pow(1 + weeklyRate, 365/7) - 1;
+            const yearlyInflation = yearlyRate * 100;
+            
+            weeklyData.push({
+              week: Math.floor(i / 7) + 1,
+              startDay: i,
+              endDay: i + 6,
+              date: startDay.date,
+              endDate: endDay.date,
+              startSupply: startDay.supply,
+              endSupply: endDay.supply,
+              weeklyEmission,
+              weeklyInflation,
+              monthlyInflation,
+              yearlyInflation,
+              label: `Week ${Math.floor(i / 7) + 1}`,
+              percentOfMaxSupply: (startDay.supply / maxSupply) * 100,
+              supply: startDay.supply,
+              cumulativeEmission: startDay.totalEmitted,
+              halving: 0
+            });
+          }
+          
+          // Calculate monthly inflation
+          const monthlyData = [];
+          for (let i = 0; i < dailyData.length - 30; i += 30) {
+            const startDay = dailyData[i];
+            const endDay = dailyData[Math.min(i + 29, dailyData.length - 1)];
+            const monthlyEmission = endDay.supply - startDay.supply;
+            const monthlyInflation = (monthlyEmission / startDay.supply) * 100;
+            
+            // Calculate yearly inflation rate (annualized from monthly)
+            const monthlyRate = monthlyEmission / startDay.supply;
+            const yearlyRate = Math.pow(1 + monthlyRate, 12) - 1;
+            const yearlyInflation = yearlyRate * 100;
+            
+            monthlyData.push({
+              month: Math.floor(i / 30) + 1,
+              startDay: i,
+              endDay: i + 29,
+              date: startDay.date,
+              endDate: endDay.date,
+              startSupply: startDay.supply,
+              endSupply: endDay.supply,
+              monthlyEmission,
+              monthlyInflation,
+              yearlyInflation,
+              label: `Month ${Math.floor(i / 30) + 1}`,
+              percentOfMaxSupply: (startDay.supply / maxSupply) * 100,
+              supply: startDay.supply,
+              cumulativeEmission: startDay.totalEmitted,
+              halving: 0
+            });
+          }
+          
+          // Calculate yearly inflation
+          const yearlyData = [];
+          for (let i = 0; i < dailyData.length - 365; i += 365) {
+            const startDay = dailyData[i];
+            const endDay = dailyData[Math.min(i + 364, dailyData.length - 1)];
+            const yearlyEmission = endDay.supply - startDay.supply;
+            const yearlyInflation = (yearlyEmission / startDay.supply) * 100;
+            
+            yearlyData.push({
+              year: Math.floor(i / 365) + 1,
+              startDay: i,
+              endDay: i + 364,
+              date: startDay.date,
+              endDate: endDay.date,
+              startSupply: startDay.supply,
+              endSupply: endDay.supply,
+              yearlyEmission,
+              yearlyInflation,
+              label: `Year ${Math.floor(i / 365) + 1}`,
+              percentOfMaxSupply: (startDay.supply / maxSupply) * 100,
+              supply: startDay.supply,
+              cumulativeEmission: startDay.totalEmitted,
+              halving: 0
+            });
+          }
+          
+          return { weeklyData, monthlyData, yearlyData };
+        };
+
+        // Find halving events
+        const findHalvings = (dailyData) => {
+          const halvings = [];
+          let lastEmission = initialDailyEmission;
+          
+          for (let i = 1; i < dailyData.length; i++) {
+            if (dailyData[i].dailyEmission < lastEmission) {
+              halvings.push({
+                day: i,
+                date: dailyData[i].date,
+                week: Math.floor(i / 7) + 1,
+                month: Math.floor(i / 30) + 1,
+                year: Math.floor(i / 365) + 1,
+                supply: dailyData[i].supply,
+                newEmissionRate: dailyData[i].dailyEmission,
+                percentOfMaxSupply: (dailyData[i].supply / maxSupply) * 100
+              });
+              lastEmission = dailyData[i].dailyEmission;
+            }
+          }
+          
+          return halvings;
+        };
+
+        // Mark halvings in the dataset
+        const markHalvingsInData = (dataArray, halvings, timeUnit) => {
+          return dataArray.map(item => {
+            const matchingHalving = halvings.findIndex(halving => {
+              switch(timeUnit) {
+                case 'week':
+                  return halving.week === item.week;
+                case 'month':
+                  return halving.month === item.month;
+                case 'year':
+                  return halving.year === item.year;
+                default:
+                  return false;
+              }
+            });
+            
+            return {
+              ...item,
+              halving: matchingHalving >= 0 ? matchingHalving + 1 : 0
+            };
+          });
+        };
+
+        // Run the simulation
+        setIsLoading(true);
+        
+        // Use setTimeout to allow the UI to show the loading state
+        setTimeout(() => {
+          const dailyData = simulateEmissions(10950); // 30 years
+          const { weeklyData, monthlyData, yearlyData } = calculateInflationRates(dailyData);
+          const halvings = findHalvings(dailyData);
+          
+          // Mark halvings in the dataset
+          const markedWeeklyData = markHalvingsInData(weeklyData, halvings, 'week');
+          const markedMonthlyData = markHalvingsInData(monthlyData, halvings, 'month');
+          const markedYearlyData = markHalvingsInData(yearlyData, halvings, 'year');
+          
+          // Process data for charts - cap extreme values for better visualization
+          const processedWeeklyData = markedWeeklyData.map(week => ({
+            ...week,
+            weeklyInflation: Math.min(week.weeklyInflation, 10000),
+            monthlyInflation: Math.min(week.monthlyInflation, 50000),
+            yearlyInflation: Math.min(week.yearlyInflation, 100000),
+            // Add normalized supply for dual-axis chart (0-100%)
+            normalizedSupply: (week.supply / maxSupply) * 100
+          }));
+          
+          const processedMonthlyData = markedMonthlyData.map(month => ({
+            ...month,
+            monthlyInflation: Math.min(month.monthlyInflation, 50000),
+            yearlyInflation: Math.min(month.yearlyInflation, 100000),
+            normalizedSupply: (month.supply / maxSupply) * 100
+          }));
+          
+          const processedYearlyData = markedYearlyData.map(year => ({
+            ...year,
+            yearlyInflation: Math.min(year.yearlyInflation, 100000),
+            normalizedSupply: (year.supply / maxSupply) * 100
+          }));
+          
+          setWeeklyData(processedWeeklyData);
+          setMonthlyData(processedMonthlyData);
+          setYearlyData(processedYearlyData);
+          setHalvings(halvings);
+          setIsLoading(false);
+        }, 100);
+      };
+
+      // Get chart data based on active selection and view period
+      const getChartData = () => {
+        let data;
+        
+        switch(activeChart) {
+          case 'weekly':
+            data = weeklyData;
+            break;
+          case 'monthly':
+            data = monthlyData;
+            break;
+          case 'yearly':
+            data = yearlyData;
+            break;
+          default:
+            data = weeklyData;
+        }
+        
+        // Apply view period filter
+        if (viewPeriod !== 'all' && data.length > 0) {
+          switch(viewPeriod) {
+            case 'first-year':
+              return data.filter(d => {
+                switch(activeChart) {
+                  case 'weekly': return d.week <= 52;
+                  case 'monthly': return d.month <= 12;
+                  case 'yearly': return d.year <= 1;
+                  default: return false;
+                }
+              });
+            case 'first-halving':
+              if (halvings.length > 0) {
+                const firstHalvingPeriod = {
+                  week: halvings[0].week,
+                  month: halvings[0].month,
+                  year: halvings[0].year
+                };
+                
+                return data.filter(d => {
+                  switch(activeChart) {
+                    case 'weekly': return d.week <= firstHalvingPeriod.week;
+                    case 'monthly': return d.month <= firstHalvingPeriod.month;
+                    case 'yearly': return d.year <= firstHalvingPeriod.year;
+                    default: return false;
+                  }
+                });
+              }
+              break;
+            case 'between-halvings':
+              if (halvings.length > 1) {
+                const period = {
+                  startWeek: halvings[0].week,
+                  endWeek: halvings[1].week,
+                  startMonth: halvings[0].month,
+                  endMonth: halvings[1].month,
+                  startYear: halvings[0].year,
+                  endYear: halvings[1].year
+                };
+                
+                return data.filter(d => {
+                  switch(activeChart) {
+                    case 'weekly': return d.week > period.startWeek && d.week <= period.endWeek;
+                    case 'monthly': return d.month > period.startMonth && d.month <= period.endMonth;
+                    case 'yearly': return d.year > period.startYear && d.year <= period.endYear;
+                    default: return false;
+                  }
+                });
+              }
+              break;
+            case 'late-stage':
+              if (halvings.length > 5) {
+                const lateStagePoint = {
+                  week: halvings[5].week,
+                  month: halvings[5].month,
+                  year: halvings[5].year
+                };
+                
+                return data.filter(d => {
+                  switch(activeChart) {
+                    case 'weekly': return d.week >= lateStagePoint.week;
+                    case 'monthly': return d.month >= lateStagePoint.month;
+                    case 'yearly': return d.year >= lateStagePoint.year;
+                    default: return false;
+                  }
+                });
+              }
+              break;
+          }
+        }
+        
+        // Default: apply reasonable limits for better visualization
+        switch(activeChart) {
+          case 'weekly':
+            return data.slice(0, 520); // First 10 years by weeks
+          case 'monthly':
+            return data.slice(0, 120); // First 10 years by months
+          case 'yearly':
+            return data; // All years
+          default:
+            return data.slice(0, 520);
+        }
+      };
+
+      // Custom tooltip formatter to display values with proper formatting
+      const formatTooltip = (value, name, props) => {
+        // Format different data types appropriately
+        if (name === 'normalizedSupply') {
+          return [`${value.toFixed(2)}%`, 'Supply (% of Max)'];
+        }
+        
+        if (name === 'supply') {
+          return [`${value.toLocaleString(undefined, { maximumFractionDigits: 0 })}`, 'Total Supply'];
+        }
+        
+        if (value > 1000) {
+          return [`${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}%`, name];
+        }
+        
+        return [`${value.toFixed(2)}%`, name];
+      };
+
+      // Custom tooltip content
+      const CustomTooltip = ({ active, payload, label }) => {
+        if (active && payload && payload.length) {
+          // Get data point
+          const dataPoint = payload[0].payload;
+          
+          // Format date based on the chart type
+          let dateDisplay;
+          switch(activeChart) {
+            case 'weekly':
+              dateDisplay = `${formatDate(dataPoint.date)} - ${formatDate(dataPoint.endDate)}`;
+              break;
+            case 'monthly':
+              dateDisplay = formatDate(dataPoint.date, 'monthYear');
+              break;
+            case 'yearly':
+              dateDisplay = formatDate(dataPoint.date, 'year');
+              break;
+            default:
+              dateDisplay = formatDate(dataPoint.date);
+          }
+          
+          // Extract halving information if present
+          const halvingInfo = dataPoint.halving > 0 ? 
+            <div className="text-red-600 font-bold">Halving #{dataPoint.halving} occurred</div> : 
+            null;
+          
+          return (
+            <div className="bg-white p-4 border border-gray-300 rounded shadow-lg">
+              <p className="font-bold text-gray-800">
+                {dateDisplay}
+              </p>
+              {halvingInfo}
+              <p className="text-sm text-gray-600">
+                Supply: {dataPoint.supply.toLocaleString(undefined, { maximumFractionDigits: 0 })} τ
+                <span className="ml-2 text-xs">({dataPoint.percentOfMaxSupply.toFixed(2)}% of max)</span>
+              </p>
+              <div className="mt-2">
+                {payload.map((entry, index) => {
+                  // Skip supply data in inflation list
+                  if (entry.dataKey === 'normalizedSupply' || entry.dataKey === 'supply') {
+                    return null;
+                  }
+                  
+                  return (
+                    <p key={`item-${index}`} style={{ color: entry.color }} className="flex justify-between">
+                      <span className="font-medium">{entry.name}:</span>
+                      <span className="ml-4">{entry.value > 1000 ? 
+                        `${entry.value.toLocaleString(undefined, { maximumFractionDigits: 2 })}%` : 
+                        `${entry.value.toFixed(2)}%`
+                      }</span>
+                    </p>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        }
+        return null;
+      };
+
+      // Map x-axis value to label
+      const getXAxisTickFormatter = () => {
+        switch(activeChart) {
+          case 'weekly':
+            return (value, index) => {
+              const data = getChartData();
+              if (index >= 0 && index < data.length) {
+                return formatDate(data[index].date);
+              }
+              return '';
+            };
+          case 'monthly':
+            return (value, index) => {
+              const data = getChartData();
+              if (index >= 0 && index < data.length) {
+                return formatDate(data[index].date, 'monthYear');
+              }
+              return '';
+            };
+          case 'yearly':
+            return (value, index) => {
+              const data = getChartData();
+              if (index >= 0 && index < data.length) {
+                return formatDate(data[index].date, 'year');
+              }
+              return '';
+            };
+          default:
+            return (value) => value;
+        }
+      };
+
+      // Get appropriate lines for active chart
+      const getChartLines = () => {
+        const baseConfig = [
+          <defs key="gradients">
+            <linearGradient id="supplyGradient" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#8884d8" stopOpacity={0.8}/>
+              <stop offset="95%" stopColor="#8884d8" stopOpacity={0.3}/>
+            </linearGradient>
+          </defs>
+        ];
+        
+        if (showSupply) {
+          baseConfig.push(
+            <Area
+              key="supply"
+              type="monotone"
+              dataKey="normalizedSupply"
+              name="Supply (% of Max)"
+              stroke="#8884d8"
+              fillOpacity={0.3}
+              fill="url(#supplyGradient)"
+              dot={false}
+              activeDot={false}
+              isAnimationActive={false}
+              yAxisId="right"
+            />
+          );
+        }
+        
+        switch(activeChart) {
+          case 'weekly':
+            return [
+              ...baseConfig,
+              <Line 
+                key="weekly"
+                type="monotone" 
+                dataKey="weeklyInflation" 
+                name="Weekly Inflation" 
+                stroke="#ff5252" 
+                strokeWidth={2}
+                dot={false} 
+                isAnimationActive={false}
+                yAxisId="left"
+              />,
+              <Line 
+                key="monthly"
+                type="monotone" 
+                dataKey="monthlyInflation" 
+                name="Monthly Inflation" 
+                stroke="#2196f3" 
+                strokeWidth={2}
+                dot={false} 
+                isAnimationActive={false}
+                yAxisId="left"
+              />,
+              <Line 
+                key="yearly"
+                type="monotone" 
+                dataKey="yearlyInflation" 
+                name="Annual Inflation" 
+                stroke="#4caf50" 
+                strokeWidth={2}
+                dot={false} 
+                isAnimationActive={false}
+                yAxisId="left"
+              />
+            ];
+          case 'monthly':
+            return [
+              ...baseConfig,
+              <Line 
+                key="monthly"
+                type="monotone" 
+                dataKey="monthlyInflation" 
+                name="Monthly Inflation" 
+                stroke="#2196f3" 
+                strokeWidth={2}
+                dot={false} 
+                isAnimationActive={false}
+                yAxisId="left"
+              />,
+              <Line 
+                key="yearly"
+                type="monotone" 
+                dataKey="yearlyInflation" 
+                name="Annual Inflation" 
+                stroke="#4caf50" 
+                strokeWidth={2}
+                dot={false} 
+                isAnimationActive={false}
+                yAxisId="left"
+              />
+            ];
+          case 'yearly':
+            return [
+              ...baseConfig,
+              <Line 
+                key="yearly"
+                type="monotone" 
+                dataKey="yearlyInflation" 
+                name="Annual Inflation" 
+                stroke="#4caf50" 
+                strokeWidth={2}
+                isAnimationActive={false}
+                yAxisId="left"
+              />
+            ];
+          default:
+            return null;
+        }
+      };
+
+      // Get dataKey for X axis
+      const getXDataKey = () => {
+        switch(activeChart) {
+          case 'weekly':
+            return 'week';
+          case 'monthly':
+            return 'month';
+          case 'yearly':
+            return 'year';
+          default:
+            return 'week';
+        }
+      };
+
+      // Get annotations for halving events
+      const getHalvingAnnotations = () => {
+        const chartData = getChartData();
+        if (!chartData.length) return [];
+        
+        // Find data points with halvings
+        const halvingPoints = chartData.filter(item => item.halving > 0);
+        
+        // Create reference lines for each halving point
+        return halvingPoints.map((point, index) => {
+          const xValue = point[getXDataKey()];
+          return (
+            <ReferenceLine 
+              key={index}
+              x={xValue} 
+              stroke="#ff0000" 
+              strokeWidth={1.5}
+              strokeDasharray="3 3"
+              label={{ 
+                value: `Halving #${point.halving}`, 
+                position: 'top', 
+                fill: '#ff0000', 
+                fontSize: 10,
+                fontWeight: 'bold' 
+              }}
+              yAxisId="left"
+            />
+          );
+        });
+      };
+      
+      // Get brush content
+      const getBrushContent = () => {
+        const dataKey = getXDataKey();
+        return (
+          <Brush 
+            dataKey={dataKey} 
+            height={30} 
+            stroke="#8884d8" 
+            tickFormatter={getXAxisTickFormatter()}
+          />
+        );
+      };
+
+      return (
+        <div className="bg-white p-6 w-full h-full rounded-lg shadow-xl">
+          <div className="border-b pb-4 mb-6">
+            <h1 className="text-3xl font-bold text-gray-800 mb-2">τ Cryptocurrency Inflation Rates</h1>
+            <p className="text-gray-600">
+              Initial token: 1 τ • Daily emission: 7,200 τ • Halving every 10.5M tokens initially (threshold halves after each halving) • Max supply: 21M τ
+            </p>
+          </div>
+          
+          <div className="flex flex-wrap gap-4 mb-6">
+            <div className="flex-1 min-w-fit">
+              <h3 className="text-sm font-semibold text-gray-600 mb-2">TOKEN VERSION</h3>
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${activeToken === 'original' ? 'bg-green-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setActiveToken('original')}
+                >
+                  Original τ (Jan 2022)
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${activeToken === 'subnets' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setActiveToken('subnets')}
+                >
+                  τ Subnets (Feb 2025)
+                </button>
+              </div>
+            </div>
+          
+            <div className="flex-1 min-w-fit">
+              <h3 className="text-sm font-semibold text-gray-600 mb-2">TIME PERIOD</h3>
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${activeChart === 'weekly' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setActiveChart('weekly')}
+                >
+                  Weekly
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${activeChart === 'monthly' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setActiveChart('monthly')}
+                >
+                  Monthly
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${activeChart === 'yearly' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setActiveChart('yearly')}
+                >
+                  Yearly
+                </button>
+              </div>
+            </div>
+            
+            <div className="flex-1 min-w-fit">
+              <h3 className="text-sm font-semibold text-gray-600 mb-2">VIEW TIMEFRAME</h3>
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${viewPeriod === 'all' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setViewPeriod('all')}
+                >
+                  All Time
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${viewPeriod === 'first-year' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setViewPeriod('first-year')}
+                >
+                  First Year
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${viewPeriod === 'first-halving' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setViewPeriod('first-halving')}
+                >
+                  To First Halving
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${viewPeriod === 'between-halvings' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setViewPeriod('between-halvings')}
+                >
+                  Between Halvings 1-2
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${viewPeriod === 'late-stage' ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setViewPeriod('late-stage')}
+                >
+                  Late Stage
+                </button>
+              </div>
+            </div>
+
+            <div className="flex-1 min-w-fit">
+              <h3 className="text-sm font-semibold text-gray-600 mb-2">OPTIONS</h3>
+              <div className="flex flex-wrap gap-2">
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${useLogScale ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setUseLogScale(!useLogScale)}
+                >
+                  {useLogScale ? 'Log Scale' : 'Linear Scale'}
+                </button>
+                <button 
+                  className={`px-3 py-1 text-sm rounded-full ${showSupply ? 'bg-blue-600 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}`}
+                  onClick={() => setShowSupply(!showSupply)}
+                >
+                  {showSupply ? 'Hide Supply' : 'Show Supply'}
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          {isLoading ? (
+            <div className="h-96 flex items-center justify-center">
+              <div className="flex flex-col items-center">
+                <div className="loading-spinner mb-4"></div>
+                <div className="text-gray-600">Running simulation for {tokenConfigs[activeToken].name}...</div>
+              </div>
+            </div>
+          ) : (
+            <div className="h-96">
+              <ResponsiveContainer width="100%" height="100%">
+                <ComposedChart
+                  data={getChartData()}
+                  margin={{ top: 20, right: 30, left: 20, bottom: 10 }}
+                >
+                  <CartesianGrid strokeDasharray="3 3" opacity={0.7} />
+                  <XAxis 
+                    dataKey={getXDataKey()}
+                    tickFormatter={getXAxisTickFormatter()}
+                    tick={{ fontSize: 10 }}
+                    interval="preserveStartEnd"
+                  >
+                    <Label value={`Timeline (${activeChart === 'weekly' ? 'Weeks' : activeChart === 'monthly' ? 'Months' : 'Years'})`} position="insideBottom" offset={-5} />
+                  </XAxis>
+                  <YAxis 
+                    yAxisId="left"
+                    scale={useLogScale ? 'log' : 'auto'}
+                    domain={useLogScale ? ['auto', 'auto'] : [0, 'auto']}
+                    tickFormatter={(value) => value > 1000 ? `${Math.round(value/1000)}k%` : `${value}%`}
+                    label={{ value: 'Inflation Rate (%)', angle: -90, position: 'insideLeft' }}
+                  />
+                  {showSupply && (
+                    <YAxis 
+                      yAxisId="right"
+                      orientation="right"
+                      domain={[0, 100]}
+                      tickFormatter={(value) => `${value}%`}
+                      label={{ value: 'Supply (% of Max)', angle: 90, position: 'insideRight' }}
+                    />
+                  )}
+                  <Tooltip content={<CustomTooltip />} />
+                  <Legend verticalAlign="top" height={36} />
+                  {getBrushContent()}
+                  
+                  {getChartLines()}
+                  {getHalvingAnnotations()}
+                </ComposedChart>
+              </ResponsiveContainer>
+            </div>
+          )}
+
+          {!isLoading && (
+            <div className="mt-8">
+              <h3 className="text-xl font-bold text-gray-800 mb-4">Key Halving Milestones for {tokenConfigs[activeToken].name}</h3>
+              <div className="overflow-x-auto bg-gray-50 rounded-lg border border-gray-200 shadow-inner">
+                <table className="min-w-full border-collapse text-sm">
+                  <thead>
+                    <tr className="bg-gray-100 text-gray-700">
+                      <th className="border-b border-gray-300 px-4 py-3 text-left">Halving #</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-left">Date</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-left">Time Period</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-right">Supply</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-right">% of Max Supply</th>
+                      <th className="border-b border-gray-300 px-4 py-3 text-right">New Emission Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {halvings.map((halving, index) => (
+                      <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                        <td className="border-b border-gray-200 px-4 py-3 text-left font-medium">{index + 1}</td>
+                        <td className="border-b border-gray-200 px-4 py-3 text-left font-medium">
+                          {formatDate(halving.date, 'medium')}
+                        </td>
+                        <td className="border-b border-gray-200 px-4 py-3 text-left">
+                          <div className="flex flex-col">
+                            <span className="font-medium">Year {halving.year}</span>
+                            <span className="text-xs text-gray-500">Month {halving.month} / Week {halving.week} / Day {halving.day}</span>
+                          </div>
+                        </td>
+                        <td className="border-b border-gray-200 px-4 py-3 text-right font-mono">{Math.round(halving.supply).toLocaleString()} τ</td>
+                        <td className="border-b border-gray-200 px-4 py-3 text-right font-mono">{halving.percentOfMaxSupply.toFixed(2)}%</td>
+                        <td className="border-b border-gray-200 px-4 py-3 text-right font-mono">{halving.newEmissionRate.toLocaleString()} τ/day</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-100">
+            <h3 className="text-lg font-semibold text-blue-800 mb-2">About τ (Tau) Cryptocurrency</h3>
+            <div className="text-blue-700 text-sm">
+              <p className="mb-2">
+                <span className="font-semibold">Original τ Token:</span> Launched on January 1, 2022.
+                <br/>
+                <span className="font-semibold">τ Subnets:</span> Launched on February 14, 2025.
+              </p>
+              <p>This visualization simulates the τ cryptocurrency's emission schedule and inflation rates. The model shows inflation relative to circulating supply at the beginning of each period (weekly, monthly, or yearly).</p>
+              <p className="mt-2">Key observations:</p>
+              <ul className="list-disc ml-5 mt-1 space-y-1">
+                <li>Extremely high initial inflation due to starting with just 1 token</li>
+                <li>Each halving occurs after a predetermined amount of new tokens are created</li>
+                <li>The required threshold for halving also halves after each event</li>
+                <li>Inflation gradually stabilizes as supply increases</li>
+                <li>Late-stage inflation approaches zero as we near the max supply of 21M τ</li>
+              </ul>
+            </div>
+          </div>
+        </div>
+      );
+    };
+
+    // Render the app
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<TauInflationVisualizer />);
+  </script>
+</body>
+</html>
